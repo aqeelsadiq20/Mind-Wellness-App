@@ -1,98 +1,123 @@
-import * as Device from 'expo-device';
-import { Platform, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRef, useState } from 'react';
+import {
+  FlatList,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import { Picker } from '@react-native-picker/picker';
 
-import { AnimatedIcon } from '@/components/animated-icon';
-import { HintRow } from '@/components/hint-row';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+type Lang = 'en' | 'ur';
+type Message = { id: string; text: string; from: 'user' | 'bot' };
 
-function getDevMenuHint() {
-  if (Platform.OS === 'web') {
-    return <ThemedText type="small">use browser devtools</ThemedText>;
-  }
-  if (Device.isDevice) {
-    return (
-      <ThemedText type="small">
-        shake device or press <ThemedText type="code">m</ThemedText> in terminal
-      </ThemedText>
-    );
-  }
-  const shortcut = Platform.OS === 'android' ? 'cmd+m (or ctrl+m)' : 'cmd+d';
+const STRINGS = {
+  en: {
+    title: 'Health & Mind Wellness',
+    welcome: 'Hi! Tell me about your sleep, exercise, food or mood today.',
+    placeholder: 'Type how you feel...',
+    send: 'Send',
+    reply: 'Thanks for sharing. AI replies will be connected later.',
+  },
+  ur: {
+    title: 'صحت اور ذہنی تندرستی',
+    welcome: 'سلام! آج اپنی نیند، ورزش، خوراک یا موڈ کے بارے میں مجھے بتائیں۔',
+    placeholder: 'بتائیں آپ کیسا محسوس کر رہے ہیں...',
+    send: 'بھیجیں',
+    reply: 'شیئر کرنے کا شکریہ۔ AI جوابات بعد میں شامل کیے جائیں گے۔',
+  },
+};
+
+export default function ChatScreen() {
+  const [lang, setLang] = useState<Lang>('en');
+  const [messages, setMessages] = useState<Message[]>([
+    { id: 'welcome', text: '', from: 'bot' },
+  ]);
+  const [input, setInput] = useState('');
+  const listRef = useRef<FlatList<Message>>(null);
+
+  const t = STRINGS[lang];
+  const textDir = {
+    textAlign: lang === 'ur' ? ('right' as const) : ('left' as const),
+    writingDirection: lang === 'ur' ? ('rtl' as const) : ('ltr' as const),
+  };
+
+  const send = () => {
+    const text = input.trim();
+    if (!text) return;
+    const stamp = Date.now();
+    setMessages((prev) => [
+      ...prev,
+      { id: `u${stamp}`, text, from: 'user' },
+      { id: `b${stamp}`, text: t.reply, from: 'bot' },
+    ]);
+    setInput('');
+  };
+
   return (
-    <ThemedText type="small">
-      press <ThemedText type="code">{shortcut}</ThemedText>
-    </ThemedText>
-  );
-}
+    <KeyboardAvoidingView
+      style={styles.screen}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <View style={styles.header}>
+        <Text style={[styles.title, textDir]}>{t.title}</Text>
+        <Picker
+          selectedValue={lang}
+          onValueChange={(value) => setLang(value as Lang)}
+          style={styles.picker}
+        >
+          <Picker.Item label="English" value="en" />
+          <Picker.Item label="اردو (Urdu)" value="ur" />
+        </Picker>
+      </View>
 
-export default function HomeScreen() {
-  return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Welcome to&nbsp;Expo
-          </ThemedText>
-        </ThemedView>
+      <FlatList
+        ref={listRef}
+        data={messages}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.list}
+        onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
+        renderItem={({ item }) => (
+          <View style={[styles.bubble, item.from === 'user' ? styles.user : styles.bot]}>
+            <Text style={[item.from === 'user' ? styles.userText : styles.botText, textDir]}>
+              {item.id === 'welcome' ? t.welcome : item.text}
+            </Text>
+          </View>
+        )}
+      />
 
-        <ThemedText type="code" style={styles.code}>
-          get started
-        </ThemedText>
-
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
-          <HintRow
-            title="Try editing"
-            hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
-          />
-          <HintRow title="Dev tools" hint={getDevMenuHint()} />
-          <HintRow
-            title="Fresh start"
-            hint={<ThemedText type="code">npm run reset-project</ThemedText>}
-          />
-        </ThemedView>
-
-        {Platform.OS === 'web' && <WebBadge />}
-      </SafeAreaView>
-    </ThemedView>
+      <View style={styles.inputRow}>
+        <TextInput
+          style={[styles.input, textDir]}
+          value={input}
+          onChangeText={setInput}
+          placeholder={t.placeholder}
+          onSubmitEditing={send}
+        />
+        <Pressable style={styles.sendButton} onPress={send}>
+          <Text style={styles.sendText}>{t.send}</Text>
+        </Pressable>
+      </View>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    flexDirection: 'row',
-  },
-  safeArea: {
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    alignItems: 'center',
-    gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
-  },
-  heroSection: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
-  },
-  title: {
-    textAlign: 'center',
-  },
-  code: {
-    textTransform: 'uppercase',
-  },
-  stepContainer: {
-    gap: Spacing.three,
-    alignSelf: 'stretch',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
-  },
+  screen: { flex: 1, backgroundColor: '#F2F6F3', paddingTop: 56 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, marginBottom: 8, gap: 12 },
+  title: { flex: 1, fontSize: 22, fontWeight: '800', color: '#1E2B2A' },
+  picker: { width: 150, height: 40, backgroundColor: '#FFFFFF', borderRadius: 10, paddingHorizontal: 8 },
+  list: { padding: 20, gap: 12 },
+  bubble: { maxWidth: '80%', padding: 14, borderRadius: 18 },
+  bot: { alignSelf: 'flex-start', backgroundColor: '#FFFFFF' },
+  user: { alignSelf: 'flex-end', backgroundColor: '#2F7F6F' },
+  botText: { color: '#1E2B2A', fontSize: 16 },
+  userText: { color: '#FFFFFF', fontSize: 16 },
+  inputRow: { flexDirection: 'row', gap: 8, padding: 16, backgroundColor: '#FFFFFF' },
+  input: { flex: 1, backgroundColor: '#F2F6F3', borderRadius: 14, paddingHorizontal: 16, minHeight: 44, fontSize: 16 },
+  sendButton: { backgroundColor: '#2F7F6F', borderRadius: 14, paddingHorizontal: 20, justifyContent: 'center', minHeight: 44 },
+  sendText: { color: '#FFFFFF', fontWeight: '800' },
 });
